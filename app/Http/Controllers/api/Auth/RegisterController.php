@@ -56,6 +56,7 @@ class RegisterController extends Controller
     {
       $validator = $this->validator($request->all());
       if (!$validator->fails()) {
+
         $user = $this->create($request->all());
         $token = JWTAuth::attempt($request->only('email', 'password'));
 

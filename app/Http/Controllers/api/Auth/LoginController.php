@@ -1,11 +1,11 @@
 <?php
-
 namespace App\Http\Controllers\api\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
-use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Http\Request;
+use Tymon\JWTAuth\Exceptions\JWTException;
+use Tymon\JWTAuth\JWTAuth;
 
 class LoginController extends Controller
 {
@@ -19,9 +19,7 @@ class LoginController extends Controller
     | to conveniently provide its functionality to your applications.
     |
     */
-
     use AuthenticatesUsers;
-
     /**
      * Where to redirect users after login.
      *
@@ -41,7 +39,6 @@ class LoginController extends Controller
         $this->auth = $auth;
     }
 
-
     /**
      * Handle a login request to the application.
      *
@@ -55,15 +52,13 @@ class LoginController extends Controller
         // If the class is using the ThrottlesLogins trait, we can automatically throttle
         // the login attempts for this application. We'll key this by the username and
         // the IP address of the client making these requests into this application.
-        if (method_exists($this, 'hasTooManyLoginAttempts') &&
-            $this->hasTooManyLoginAttempts($request)) {
+        if ($this->hasTooManyLoginAttempts($request)) {
             $this->fireLockoutEvent($request);
-
             return response()->json([
-              'success' => false,
-              'errors' => [
-                "Estás bloqueado eeh"
-              ]
+                'success' => false,
+                'errors' => [
+                    "You've been locked out"
+                ]
             ]);
         }
 
@@ -72,37 +67,44 @@ class LoginController extends Controller
         // user surpasses their maximum number of attempts they will get locked out.
         $this->incrementLoginAttempts($request);
 
-        try {
-          if (!$token = JWTAuth::attempt($request->only('email', 'password'))) {
-            return response()->json([
-              'success' => false,
-              'errors' => [
-                'email' => [
-                  "Email o contraseña invalida."
-                ]
-              ]
-            ], 422);
-          }
-        } catch (JWTException $e) {
-          return response()->json([
-            'success' => false,
-            'errors' => [
-              'email' => [
-                "Email o contraseña invalida."
-              ]
-            ]
-          ], 422);
+        
+        // attempt login with token
+        if ($request->input('token')) {
+            $this->auth->setToken($request->input('token'));
+            $user = $this->auth->authenticate();
+            if ($user) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $request->user(),
+                    'token' => $request->input('token')
+                ], 200);
+            }
         }
-
-
-
-
+        try {
+            if (!$token = $this->auth->attempt($request->only('email', 'password'))) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => [
+                        'email' => [
+                            "Invalid email address or password"
+                        ]
+                    ]
+                ], 422);
+            }
+        } catch (JWTException $e) {
+            return response()->json([
+                'success' => false,
+                'errors' => [
+                    'email' => [
+                        "Invalid email address or password"
+                    ]
+                ]
+            ], 422);
+        }
         return response()->json([
-          'success' => true,
-          'data' => $request->user(),
-          'token' => $token
+            'success' => true,
+            'data' => $request->user(),
+            'token' => $token
         ], 200);
     }
-
-
 }
